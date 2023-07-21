@@ -53,20 +53,13 @@ function App() {
 
 
 
-  const validateBalanceToBuy = (amount) => {
+  const validateBalanceToBuy = (amount, exchange) => {
     let newExchanges = [...exchanges];
-    let totalBalance = newExchanges.reduce(function (a, b) {
-      if(typeof a === 'object') {
-        return a.balance + b.balance;
-      } else {
-        return a + b.balance;
-      }
-    });
-    if (totalBalance >= amount) {
-      return true;
-    } else {
+    let exchangeToBuy = newExchanges.find(ex => ex.title.toUpperCase() === exchange.toUpperCase());
+    if (exchangeToBuy?.balance < amount) {
       return false;
     }
+    return true;
   }
 
   const validateExchageNeedBalance = (exchange, amount) => {
@@ -79,7 +72,7 @@ function App() {
   }
 
   const fundToExchange = (exchange, amount) => {
-    
+
     let newExchanges = [...exchanges];
     let exchangeToReceive = newExchanges.find(ex => ex.title.toUpperCase() === exchange.toUpperCase());
     let amountToReceive = amount - exchangeToReceive.balance;
@@ -102,7 +95,7 @@ function App() {
           return o.balance;
         });
         var maxValue = Math.max.apply(Math, tmp);
-        tmp = tmp.map( (o) => o.toString());
+        tmp = tmp.map((o) => o.toString());
         var index = tmp.indexOf(maxValue.toString());
         let exchangeToWithdraw = newExchanges[index];
         let amountToWithdraw = exchangeToWithdraw?.balance;
@@ -119,7 +112,7 @@ function App() {
         newExchanges.every((ex) => {
           if (ex.title.toUpperCase() !== exchange.toUpperCase()) {
             let amountToExchange = amountToReceive;
-            if(ex.balance <= amountToReceive) {
+            if (ex.balance <= amountToReceive) {
               amountToExchange = ex.balance;
             }
             amountToReceive -= amountToExchange;
@@ -146,7 +139,7 @@ function App() {
 
   const validateExchangeNeedBalancing = (newExchangesParam) => {
     let newExchanges = [...exchanges];
-    if(newExchangesParam) { newExchanges = newExchangesParam }
+    if (newExchangesParam) { newExchanges = newExchangesParam }
     let exchangesToBalance = newExchanges.filter(ex => ex.balance < min);
     if (exchangesToBalance.length > 0) {
       return true;
@@ -154,61 +147,74 @@ function App() {
     return false;
   }
 
-  const balance = (newExchangesParam) => {
+  const balance = () => {
+    // create a function to balance Exchanges that are none below average with the minimum possible trades.
     let newExchanges = [...exchanges];
-    if(newExchangesParam) { newExchanges = newExchangesParam }
-
     let exchangesToBalance = newExchanges.filter(ex => ex.balance < min);
-    let tempTrxs = [...trxs];
     exchangesToBalance.forEach(exchange => {
-      let exchangesToReceive = newExchanges.filter(ex => ex.balance > average);
-      exchangesToReceive.forEach(exchangeToReceive => {
-        let amount = Math.min(exchangeToReceive.balance - average, min - exchange.balance);
-        console.log("amount", amount)
-        if (amount > 0) {
-          exchange.balance += amount;
-          exchangeToReceive.balance -= amount;
-          tempTrxs.push({
-            balancing: new Date().toLocaleString() + ' - Balanceo',
-            from: exchangeToReceive.title,
-            to: exchange.title,
-            amount: amount
-          })
-        }
-      })
-    })
-    setTrxs(tempTrxs);
+      let amountToBalance = min - exchange.balance;
+      let exchangesWithBalance = newExchanges.filter(ex => ex.balance > min);
+      if (exchangesWithBalance.length > 0) {
+        exchangesWithBalance.every((ex) => {
+          if (ex.balance > min) {
+            let amountToExchange = amountToBalance;
+            if (ex.balance <= amountToBalance) {
+              amountToExchange = ex.balance;
+            }
+            amountToBalance -= amountToExchange;
+            ex.balance -= amountToExchange;
+            exchange.balance += amountToExchange;
+            setTrxs([...trxs, {
+              balancing: new Date().toLocaleString() + ' - Balanceo',
+              from: ex.title,
+              to: exchange.title,
+              amount: amountToExchange
+            }])
+            if (exchange.balance >= min) {
+              return false
+            }
+            return true;
+          }
+          return true;
+        });
+      }
+    }
+    );
     setExchanges(newExchanges);
+    
   }
 
   const compra = (exchange, amount) => {
-    if(!exchange || !amount) return;
-    const canBuy = validateBalanceToBuy(amount);
+    if (!exchange || !amount) return;
+    const canBuy = validateBalanceToBuy(amount, exchange);
     if (!canBuy) {
       alert('No hay fondos para la transacción')
       return;
     }
-    const exchangeNeedBalance = validateExchageNeedBalance(exchange, amount);
     let newExchanges = [...exchanges];
+    /*
+    const exchangeNeedBalance = validateExchageNeedBalance(exchange, amount);
+    
     if (exchangeNeedBalance) {
       newExchanges = fundToExchange(exchange, amount);
-    }
+    }*/
     newExchanges.find(ex => ex.title.toUpperCase() === exchange.toUpperCase()).balance -= amount;
+
     setExchanges(newExchanges);
     setBuyForm({
       exchange: '',
       amount: 0
-    })    
+    })
   }
 
   useEffect(() => {
     calcAverage();
   }, [])
   useEffect(() => {
+    calcAverage();
     if (validateExchangeNeedBalancing()) {
       balance();
     }
-    calcAverage();
   }, [exchanges, critical, minPercent])
 
   return (
@@ -241,7 +247,7 @@ function App() {
             />
           </div>
           <div className="divider" />
-          <p><strong>Transaccion</strong></p>
+          <p><strong>Salida a Hot Wallet</strong></p>
           <div className="form-group">
             <label htmlFor="exchange">Exchange</label>
             <select
@@ -269,7 +275,7 @@ function App() {
           <div className="form-group">
             <input
               type="button"
-              value="Comprar"
+              value="Enviar"
               onClick={() => {
                 compra(buyForm.exchange, parseInt(buyForm.amount));
               }}
